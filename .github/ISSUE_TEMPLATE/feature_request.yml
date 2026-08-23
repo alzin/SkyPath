@@ -1,0 +1,53 @@
+name: Feature request
+description: Propose an improvement to SkyPath.
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for sharing an idea. Describe the user problem before the implementation so alternatives can be evaluated.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or opportunity
+      description: Who would benefit, and what is difficult or missing today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Explain the interaction, visual, pattern, or technical change you have in mind.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What other approaches or workarounds did you consider?
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Add sketches, references, examples, or constraints.
+  - type: dropdown
+    id: contribution
+    attributes:
+      label: Would you like to contribute this change?
+      options:
+        - "Yes"
+        - Maybe, with guidance
+        - "No"
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched for an existing issue or discussion.
+          required: true
+        - label: This proposal keeps SkyPath clearly separated from real flight-control or safety software.
+          required: true

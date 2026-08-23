@@ -1,0 +1,87 @@
+name: Bug report
+description: Report a reproducible problem in the SkyPath visualization.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve SkyPath. Please search existing issues first and do not use this form for security vulnerabilities.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What went wrong, and what did you expect instead?
+      placeholder: Describe the observed and expected behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Give the smallest reliable sequence that demonstrates the problem.
+      placeholder: |
+        1. Open ...
+        2. Select ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: dropdown
+    id: browser
+    attributes:
+      label: Browser
+      options:
+        - Chrome
+        - Edge
+        - Firefox
+        - Safari
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: browser-version
+    attributes:
+      label: Browser version
+      placeholder: "For example: 140.0"
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Operating system, device, and viewport
+      placeholder: "For example: Windows 11, desktop, 1600 × 1000"
+    validations:
+      required: true
+  - type: dropdown
+    id: webgl
+    attributes:
+      label: Is WebGL available?
+      options:
+        - "Yes"
+        - "No"
+        - Unsure
+    validations:
+      required: true
+  - type: textarea
+    id: console
+    attributes:
+      label: Console output
+      description: Paste relevant browser-console errors. Remove personal or sensitive data first.
+      render: shell
+  - type: textarea
+    id: media
+    attributes:
+      label: Screenshots or recording
+      description: Drag in any image or recording that makes the issue easier to understand.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched for an existing issue.
+          required: true
+        - label: I removed private or sensitive information from this report.
+          required: true
+        - label: This is not a security vulnerability or real-drone safety request.
+          required: true
