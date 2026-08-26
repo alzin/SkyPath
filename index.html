@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="description" content="Explore five automated cinematic drone flight patterns in an interactive Three.js visualization with live telemetry and subject-locked framing.">
 <meta name="theme-color" content="#0d7fb0">
 <meta name="referrer" content="no-referrer">
@@ -44,16 +44,18 @@
     --r:14px;
   }
   *{box-sizing:border-box;margin:0;padding:0}
-  html,body{height:100%}
+  html,body{height:100%;overscroll-behavior:none}
   body{
     font-family:"Outfit",system-ui,-apple-system,sans-serif;
     color:var(--ink);
     background:#dceefa;
     overflow:hidden;
+    min-height:100dvh;
     -webkit-font-smoothing:antialiased;
+    -webkit-tap-highlight-color:transparent;
   }
   #app{position:fixed;inset:0}
-  canvas{display:block}
+  canvas{display:block;touch-action:none}
 
   .panel{
     background:var(--paper);
@@ -64,6 +66,7 @@
     box-shadow:var(--shadow);
   }
   .mono{font-family:"IBM Plex Mono",ui-monospace,monospace}
+  .sheet-scrim,.sheet-close{display:none}
 
   /* ================= header ================= */
   .topbar{position:fixed;top:0;left:0;right:0;z-index:12;display:flex;
@@ -181,9 +184,13 @@
 
   /* telemetry */
   .hud{padding:14px 15px 13px}
+  .hud-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:11px}
   .hud h2{font-family:"IBM Plex Mono",monospace;font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;
-    color:var(--ink-3);font-weight:600;margin-bottom:11px;display:flex;align-items:center;gap:7px}
+    color:var(--ink-3);font-weight:600;display:flex;align-items:center;gap:7px}
   .hud h2 i{width:6px;height:6px;border-radius:50%;background:#2fbf6a;box-shadow:0 0 0 3px rgba(47,191,106,.18)}
+  .hud-toggle{display:none;appearance:none;border:0;background:transparent;color:var(--ink-3);cursor:pointer;
+    width:32px;height:32px;border-radius:9px;align-items:center;justify-content:center}
+  .hud-toggle svg{width:16px;height:16px;transition:transform .18s ease}
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:9px}
   .cell{background:rgba(13,127,176,.055);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
   .cell .k{font-size:9.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);font-weight:500}
@@ -222,9 +229,11 @@
     color:var(--ink);font:600 12px "Outfit",sans-serif;padding:8px 28px 8px 10px;cursor:pointer;
     background-image:linear-gradient(45deg,transparent 50%,var(--sea) 50%),linear-gradient(135deg,var(--sea) 50%,transparent 50%);
     background-position:calc(100% - 14px) 50%,calc(100% - 9px) 50%;background-size:5px 5px;background-repeat:no-repeat}
+  .pattern-trigger{display:none}
 
   .btn:focus-visible,.pitem:focus-visible,.mon-toggle:focus-visible,.track:focus-visible,
-  .speed input:focus-visible,.mobile-pattern select:focus-visible{outline:3px solid #ffb000;outline-offset:3px}
+  .speed input:focus-visible,.mobile-pattern select:focus-visible,.pattern-trigger:focus-visible,
+  .sheet-close:focus-visible,.hud-toggle:focus-visible{outline:3px solid #ffb000;outline-offset:3px}
 
   .scrubwrap{display:flex;align-items:center;gap:9px;min-width:210px}
   .track{position:relative;flex:1;height:22px;display:flex;align-items:center;cursor:pointer}
@@ -260,7 +269,7 @@
     text-align:right;white-space:nowrap}
   .keys b{color:var(--ink-2);font-weight:600}
 
-  /* ---- responsive: shed the optional panels before anything can collide ---- */
+  /* ---- responsive: progressively turn the study into a focused mobile cockpit ---- */
   @media (max-width:1460px){ .keys{display:none} }
   @media (max-width:1340px){ .blurb{display:none} }
   @media (max-width:1200px){ .legend{display:none} }
@@ -270,24 +279,241 @@
   }
   @media (max-width:960px){
     .rail{display:none}
-    .right{top:auto;bottom:auto;top:96px;width:250px}
-    .dock{flex-wrap:wrap;justify-content:center;max-width:calc(100vw - 40px)}
+    .right{top:92px;width:270px}
+    .bottom{justify-content:center;padding-left:14px;padding-right:14px}
+    .bottom .side{display:none}
+    .dock{flex-wrap:wrap;justify-content:center;max-width:calc(100vw - 28px)}
     .mobile-pattern{display:flex}
   }
+
   @media (max-width:700px){
-    .right{width:210px;top:88px}
-    .sep{display:none}
-    .speed{gap:5px}
-    .speed label{display:none}
-    .speed input[type=range]{width:64px}
+    :root{--mobile-gutter:12px}
+    .topbar{
+      min-height:64px;
+      align-items:center;
+      padding:calc(10px + env(safe-area-inset-top)) var(--mobile-gutter) 10px;
+      background:linear-gradient(180deg,rgba(238,249,244,.86) 0%,rgba(238,249,244,.42) 62%,transparent 100%);
+    }
+    .brand{gap:9px}
+    .mark{width:32px;height:32px}
+    .brand h1{font-size:18px}
+    .brand .sub{font-size:8px;letter-spacing:.16em;margin-top:4px}
+
+    /* The instrumentation cards share the top edge instead of forming a tall stack. */
+    .right{position:fixed;inset:0;width:auto;display:block;pointer-events:none}
+    .right > *{pointer-events:auto}
+    .monitor{
+      position:absolute;
+      top:calc(70px + env(safe-area-inset-top));
+      right:var(--mobile-gutter);
+      width:min(44vw,184px);
+      border-radius:14px;
+      box-shadow:0 14px 32px -16px rgba(7,44,68,.68);
+    }
+    .mon-bar{min-height:44px;gap:4px;padding:0 2px 0 8px}
+    .cam-lab{font-size:8.5px;letter-spacing:.07em;gap:4px}
+    .cam-lab svg{width:11px;height:11px}
+    .rec{font-size:8.5px;letter-spacing:.07em;gap:4px}
+    .rec i{width:6px;height:6px}
+    .mon-bar .tc,.mon-bar .lock{display:none}
+    .mon-toggle{margin-left:auto;width:44px;height:44px;flex:0 0 44px;padding:0;display:flex;align-items:center;justify-content:center}
+    .mon-body{border-width:3px}
+    .feed{min-height:0}
+    .feed .stamp,.feed .stamp2{font-size:7.5px;bottom:5px}
+    .feed .stamp{left:6px}
+    .feed .stamp2{right:6px}
+    .corner{width:11px;height:11px}
+    .corner.tl,.corner.tr{top:6px}.corner.bl,.corner.br{bottom:6px}
+    .corner.tl,.corner.bl{left:6px}.corner.tr,.corner.br{right:6px}
+    .cross{width:24px;height:24px}
+    .mon-cap{display:none}
+
+    .hud{
+      position:absolute;
+      top:calc(70px + env(safe-area-inset-top));
+      left:var(--mobile-gutter);
+      width:min(44vw,184px);
+      padding:7px;
+      border-radius:14px;
+      background:rgba(249,255,252,.92);
+      box-shadow:0 14px 32px -16px rgba(7,44,68,.58);
+      transition:width .2s ease,box-shadow .2s ease;
+    }
+    .hud-head{min-height:44px;margin:0 0 5px 4px}
+    .hud h2{font-size:8px;letter-spacing:.12em;gap:6px;white-space:nowrap}
+    .hud h2 i{width:5px;height:5px;box-shadow:0 0 0 3px rgba(47,191,106,.15)}
+    .hud-toggle{display:flex;width:44px;height:44px;flex:0 0 44px}
+    .hud-toggle svg{transform:rotate(0)}
+    .grid2{grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}
+    .cell{min-width:0;padding:6px 7px;border-radius:8px;background:rgba(13,127,176,.065)}
+    .cell:nth-child(n+3){display:none}
+    .cell .k{font-size:7.5px;letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .cell .v{font-size:14px;margin-top:2px}
+    .cell .v small{font-size:8px}
+    .phase{margin-top:5px;padding:5px 4px;font-size:7.5px;letter-spacing:.05em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .hud.expanded{width:calc(100vw - var(--mobile-gutter) * 2);z-index:3;box-shadow:0 20px 48px -18px rgba(7,44,68,.72)}
+    .hud.expanded .cell:nth-child(n+3){display:block}
+    .hud.expanded .cell .k{font-size:8.5px}
+    .hud.expanded .cell .v{font-size:16px}
+    .hud.expanded .hud-toggle svg{transform:rotate(180deg)}
+
+    /* Pattern browser: the useful desktop content becomes an app-style bottom sheet. */
+    .sheet-scrim{position:fixed;display:block;inset:0;z-index:29;border:0;background:rgba(4,25,38,.42);
+      opacity:0;pointer-events:none;transition:opacity .2s ease;backdrop-filter:blur(2px)}
+    body.pattern-open .sheet-scrim{opacity:1;pointer-events:auto}
+    .rail{
+      display:flex;
+      left:var(--mobile-gutter);right:var(--mobile-gutter);top:auto;bottom:0;
+      width:auto;max-height:min(78dvh,680px);z-index:30;
+      padding:18px 8px calc(10px + env(safe-area-inset-bottom));
+      gap:8px;overflow-y:auto;overscroll-behavior:contain;
+      background:rgba(242,251,247,.97);border:1px solid rgba(255,255,255,.8);
+      border-radius:24px 24px 0 0;box-shadow:0 -24px 64px -28px rgba(5,40,61,.75);
+      transform:translateY(calc(100% + 24px));transition:transform .24s cubic-bezier(.22,.75,.22,1);
+      scrollbar-width:none;
+    }
+    .rail::-webkit-scrollbar{display:none}
+    .rail:before{content:"";position:absolute;top:8px;left:50%;width:38px;height:4px;border-radius:2px;
+      background:rgba(15,80,120,.2);transform:translateX(-50%)}
+    body.pattern-open .rail{transform:translateY(0)}
+    .rail-head{min-height:40px;padding:0 6px;flex:0 0 auto}
+    .rail-head > span:first-child{font-size:11px;color:var(--ink);letter-spacing:.14em}
+    .rail-head #cmp-note{margin-left:auto;margin-right:4px;font-size:8px;letter-spacing:.08em}
+    .sheet-close{appearance:none;display:flex;align-items:center;justify-content:center;width:44px;height:44px;
+      flex:0 0 auto;border:1px solid var(--line);border-radius:12px;background:#fff;color:var(--ink);cursor:pointer}
+    .sheet-close svg{width:18px;height:18px}
+    .plist{padding:7px;gap:4px;flex:0 0 auto;box-shadow:none;background:rgba(255,255,255,.78)}
+    .pitem{min-height:54px;padding:9px 10px}
+    .pitem .nm{font-size:14px}.pitem .tg{font-size:8px}.pitem .dur{font-size:10px}
+    .detail{padding:14px;box-shadow:none;background:rgba(255,255,255,.78);flex:0 0 auto}
+
+    /* A designed three-row transport replaces accidental flex wrapping. */
+    .bottom{padding:0 8px calc(8px + env(safe-area-inset-bottom));gap:0;align-items:flex-end}
+    .dock{
+      display:grid;width:100%;max-width:none;
+      grid-template-columns:44px minmax(0,1fr) auto auto;
+      grid-template-areas:
+        "pattern pattern pattern play"
+        "replay scrub scrub scrub"
+        "speed speed follow compare";
+      gap:8px;padding:10px;border-radius:20px;
+      background:rgba(249,255,252,.95);border-color:rgba(15,80,120,.16);
+      box-shadow:0 22px 54px -18px rgba(5,40,61,.72);
+    }
+    .dock .sep{display:none}
+    .mobile-pattern{grid-area:pattern;display:block;min-width:0}
+    .mobile-pattern label,.mobile-pattern select{display:none}
+    .pattern-trigger{
+      appearance:none;display:flex;align-items:center;width:100%;height:48px;min-width:0;padding:6px 10px;
+      border:1px solid var(--line-2);border-radius:12px;background:#fff;color:var(--ink);cursor:pointer;
+      text-align:left;font-family:"Outfit",sans-serif;
+    }
+    .pattern-trigger .pnum{width:30px;height:30px;display:flex;align-items:center;justify-content:center;flex:0 0 auto;
+      border-radius:9px;background:rgba(13,127,176,.1);color:var(--sea);font:700 10px "IBM Plex Mono",monospace}
+    .pattern-trigger .ptxt{min-width:0;margin-left:9px;line-height:1.05}
+    .pattern-trigger strong{display:block;font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .pattern-trigger small{display:block;margin-top:4px;font:500 8px "IBM Plex Mono",monospace;letter-spacing:.04em;
+      color:var(--ink-3);text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .pattern-trigger svg{width:15px;height:15px;margin-left:auto;flex:0 0 auto;color:var(--sea)}
+    #play{grid-area:play}
+    #replay{grid-area:replay}
+    .scrubwrap{grid-area:scrub;min-width:0;width:100%}
+    .speed{grid-area:speed;min-width:0;min-height:44px}
+    #follow{grid-area:follow}
+    #compare{grid-area:compare}
+    .btn{min-height:44px;padding:8px 11px;border-radius:11px;font-size:12px;justify-content:center}
+    .btn.primary{min-width:98px;height:48px;box-shadow:0 8px 18px -10px rgba(13,127,176,.75)}
+    #replay{width:44px;padding:0}
+    .track{height:44px;touch-action:none}
+    .track .bg,.track .fill{height:6px}
+    .track .knob{width:16px;height:16px}
+    .tc2{width:68px;font-size:9.5px}
+    .speed{gap:7px}
+    .speed label{font-size:8.5px;letter-spacing:.08em}
+    .speed input[type=range]{width:clamp(52px,18vw,78px);height:44px;background:transparent}
+    .speed input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:rgba(13,127,176,.18)}
+    .speed input[type=range]::-moz-range-track{height:6px;border-radius:3px;background:rgba(13,127,176,.18)}
+    .speed input[type=range]::-webkit-slider-thumb{width:17px;height:17px;margin-top:-5.5px}
+    .speed input[type=range]::-moz-range-thumb{width:12px;height:12px}
+    .speed .sv{font-size:10px;width:27px}
   }
-  @media (max-height:680px){
-    .right{gap:8px}
-    .monitor .mon-body{padding:4px}
+
+  @media (max-width:350px){
+    .brand .sub{display:none}
+    .monitor,.hud{width:calc((100vw - 36px)/2)}
+    .dock{gap:6px;padding:8px}
+    .btn{font-size:11px;padding-left:8px;padding-right:8px}
+    .btn.primary{min-width:86px}
+    .pattern-trigger{padding-left:7px;padding-right:7px}
+    .pattern-trigger .pnum{display:none}
+    .pattern-trigger .ptxt{margin-left:2px}
+    .pattern-trigger small{font-size:7px}
+    .tc2{width:56px;font-size:8.5px}
+    .speed label{display:none}
+    .speed input[type=range]{width:48px}
+    .mon-bar .rec{width:8px;flex:0 0 8px}
+    .mon-bar #rec-tx{display:none}
+    .hud h2{font-size:7.25px;letter-spacing:.08em}
+  }
+
+  @media (max-width:700px) and (max-height:620px){
+    .topbar{min-height:56px;padding-top:calc(7px + env(safe-area-inset-top));padding-bottom:7px}
+    .mark{width:28px;height:28px}.brand h1{font-size:16px}
+    .brand .sub{display:none}
+    .monitor,.hud{top:calc(58px + env(safe-area-inset-top))}
+    .dock{gap:6px;padding:8px}
+    .pattern-trigger,.btn.primary{height:44px}
+    .phase{display:none}
+  }
+
+  /* Short landscape devices use one thumb-height transport rail and a side sheet. */
+  @media (max-width:1100px) and (max-height:680px) and (orientation:landscape){
+    .topbar{min-height:50px;padding:7px 10px;align-items:center}
+    .mark{width:28px;height:28px}.brand h1{font-size:16px}.brand .sub{display:none}
+    .right{position:fixed;inset:0;width:auto;display:block;pointer-events:none}
+    .right > *{pointer-events:auto}
+    .monitor{position:absolute;top:52px;right:10px;width:152px;border-radius:12px}
+    .hud{position:absolute;top:52px;left:10px;width:174px;padding:6px;border-radius:12px}
+    .mon-bar{min-height:44px;padding:0 2px 0 7px}.mon-toggle{width:44px;height:44px;flex:0 0 44px}
+    .mon-bar .tc,.mon-bar .lock{display:none}.mon-body{border-width:3px}.mon-cap{display:none}.feed{min-height:0}
+    .hud-head{min-height:44px;margin-bottom:4px}.hud h2{font-size:7.5px;letter-spacing:.1em}
+    .hud-toggle{display:flex;width:44px;height:44px;flex:0 0 44px}.hud .grid2{grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}
+    .hud .cell{padding:5px 6px}.hud .cell:nth-child(n+3){display:none}.hud .cell .k{font-size:7px}.hud .cell .v{font-size:13px}
+    .hud .phase{display:none}.hud.expanded{width:360px;max-width:calc(100vw - 20px)}
+    .hud.expanded .cell:nth-child(n+3){display:block}
+    .bottom{padding:0 6px calc(6px + env(safe-area-inset-bottom));gap:0}
+    .bottom .side{display:none}
+    .dock{display:flex;flex-wrap:nowrap;width:100%;max-width:none;gap:5px;padding:6px;border-radius:15px}
+    .mobile-pattern{display:block;flex:0 1 142px;min-width:104px}
+    .mobile-pattern label,.mobile-pattern select{display:none}
+    .pattern-trigger{display:flex;height:44px;padding:5px 7px}.pattern-trigger .pnum{display:none}.pattern-trigger .ptxt{margin-left:1px}
+    .pattern-trigger small{display:none}
+    .btn,.btn.primary{min-width:0;min-height:44px;height:44px;padding:7px 9px}
+    .btn.primary{width:82px}
+    #replay{width:44px;flex:0 0 44px;padding:0}
+    .scrubwrap{flex:1 1 90px;min-width:64px;gap:4px}.track{height:44px}.tc2{display:none}
+    .speed{flex:0 1 66px;min-height:44px;gap:4px}.speed label{display:none}.speed input[type=range]{width:38px;height:44px;background:transparent}.speed .sv{font-size:8px;width:23px}
+    .speed input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:rgba(13,127,176,.18)}
+    .speed input[type=range]::-moz-range-track{height:6px;border-radius:3px;background:rgba(13,127,176,.18)}
+    .speed input[type=range]::-webkit-slider-thumb{margin-top:-5px}
+    #follow,#compare{width:44px;flex:0 0 44px;padding:0;font-size:0}
+    #follow svg,#compare svg{width:16px;height:16px}
+    .sheet-scrim{position:fixed;display:block;inset:0;z-index:29;border:0;background:rgba(4,25,38,.42);
+      opacity:0;pointer-events:none;transition:opacity .2s ease;backdrop-filter:blur(2px)}
+    body.pattern-open .sheet-scrim{opacity:1;pointer-events:auto}
+    .sheet-close{appearance:none;display:flex;align-items:center;justify-content:center;width:44px;height:44px;
+      flex:0 0 auto;border:1px solid var(--line);border-radius:12px;background:#fff;color:var(--ink);cursor:pointer}
+    .sheet-close svg{width:18px;height:18px}
+    .rail{display:flex;left:auto;right:0;top:0;bottom:0;width:min(420px,72vw);max-height:none;z-index:30;
+      overflow-y:auto;overscroll-behavior:contain;background:rgba(242,251,247,.97);box-shadow:0 -24px 64px -28px rgba(5,40,61,.75);
+      border:1px solid rgba(255,255,255,.8);border-radius:24px 0 0 24px;
+      transform:translateX(calc(100% + 24px));padding:12px 8px 10px;transition:transform .24s cubic-bezier(.22,.75,.22,1)}
+    .rail .pitem{min-height:48px}
+    body.pattern-open .rail{transform:translateX(0)}
   }
   @media (prefers-reduced-motion:reduce){
     .rec i{animation:none}
-    .pitem,.btn,.track .knob{transition:none}
+    .pitem,.btn,.track .knob,.rail,.sheet-scrim,.hud,.hud-toggle svg{transition:none}
   }
 </style>
 </head>
@@ -317,9 +543,15 @@
   </div>
 </header>
 
-<!-- ============ LEFT: pattern picker + detail ============ -->
-<aside class="rail">
-  <div class="rail-head"><span>Choose a pattern</span><span id="cmp-note"></span></div>
+<!-- ============ LEFT: pattern picker + detail / mobile pattern sheet ============ -->
+<button class="sheet-scrim" id="pattern-scrim" type="button" aria-label="Close flight pattern browser" tabindex="-1"></button>
+<aside class="rail" id="pattern-sheet" aria-label="Flight pattern browser">
+  <div class="rail-head">
+    <span>Choose a pattern</span><span id="cmp-note"></span>
+    <button class="sheet-close" id="pattern-close" type="button" aria-label="Close flight pattern browser">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+    </button>
+  </div>
   <div class="panel plist" id="plist"></div>
   <div class="panel detail">
     <div class="kicker" id="p-tag">VERTICAL RISE</div>
@@ -360,8 +592,13 @@
     <div class="mon-cap">↑ the shot the drone is actually recording</div>
   </div>
 
-  <div class="panel hud">
-    <h2><i></i>Live telemetry</h2>
+  <div class="panel hud" id="telemetry-panel">
+    <div class="hud-head">
+      <h2><i></i>Live telemetry</h2>
+      <button class="hud-toggle" id="hud-toggle" type="button" aria-label="Show all telemetry" aria-expanded="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg>
+      </button>
+    </div>
     <div class="grid2">
       <div class="cell"><div class="k">Altitude</div><div class="v" id="t-alt">0.0<small>m</small></div></div>
       <div class="cell"><div class="k">To subject</div><div class="v" id="t-dist">3.0<small>m</small></div></div>
@@ -387,6 +624,11 @@
     <div class="mobile-pattern">
       <label for="mobile-pattern">Pattern</label>
       <select id="mobile-pattern" aria-label="Flight pattern"></select>
+      <button class="pattern-trigger" id="pattern-trigger" type="button" aria-haspopup="dialog" aria-controls="pattern-sheet" aria-expanded="false">
+        <span class="pnum" id="mobile-pattern-number">01</span>
+        <span class="ptxt"><strong id="mobile-pattern-name">Crane Up</strong><small id="mobile-pattern-meta">Vertical rise · 15s</small></span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg>
+      </button>
     </div>
     <button class="btn primary" id="play" type="button">
       <svg id="play-ic" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
@@ -404,15 +646,15 @@
     <div class="sep"></div>
     <div class="speed">
       <label for="speed">SPEED</label>
-      <input type="range" id="speed" min="0.4" max="2" step="0.1" value="1">
+      <input type="range" id="speed" min="0.4" max="2" step="0.1" value="1" aria-label="Playback speed">
       <span class="sv" id="speed-v">1.0×</span>
     </div>
     <div class="sep"></div>
-    <button class="btn" id="follow" type="button" title="Chase camera (V)" aria-pressed="false">
+    <button class="btn" id="follow" type="button" title="Chase camera (V)" aria-label="Toggle chase camera" aria-pressed="false">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
       Chase
     </button>
-    <button class="btn" id="compare" type="button" title="Show every path at once (C)" aria-pressed="false">
+    <button class="btn" id="compare" type="button" title="Show every path at once (C)" aria-label="Toggle all flight paths" aria-pressed="false">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17c4-10 14-10 18 0"/><path d="M3 12c4-7 14-7 18 0" opacity=".55"/><circle cx="12" cy="20" r="1.6" fill="currentColor"/></svg>
       Compare
     </button>
@@ -526,6 +768,7 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setClearColor(0xdceefa, 1);
 renderer.autoClear = false;
 app.appendChild(renderer.domElement);
+renderer.domElement.setAttribute('aria-label', 'Interactive 3D view of the selected automated drone flight pattern');
 
 var scene = new THREE.Scene();
 scene.fog = new THREE.FogExp2(0xcfe6f4, 0.0021);
@@ -571,6 +814,7 @@ function applyOrbit(){
   }, { passive:false });
   el.addEventListener('touchstart', function(e){ down(e.touches[0].clientX, e.touches[0].clientY); }, {passive:true});
   el.addEventListener('touchend', function(){ dragging=false; });
+  el.addEventListener('touchcancel', function(){ dragging=false; });
   el.addEventListener('touchmove', function(e){ move(e.touches[0].clientX, e.touches[0].clientY); }, {passive:true});
 })();
 applyOrbit();
@@ -1018,6 +1262,12 @@ var progress = 0, playing = false, speedMul = 1, endHold = 0, compare = false;
 var lastYaw = 0;
 var $ = function(id){ return document.getElementById(id); };
 var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+var compactLayout = window.matchMedia('(max-width:700px), (max-width:1100px) and (max-height:680px) and (orientation:landscape)');
+var currentPathPoints = [];
+function isCompactLayout(){
+  return window.innerWidth <= 700 ||
+    (window.innerWidth <= 1100 && window.innerHeight <= 680 && window.innerWidth > window.innerHeight);
+}
 
 /* pattern list */
 (function buildList(){
@@ -1041,6 +1291,70 @@ var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-moti
   $('mobile-pattern').addEventListener('change', function(){ setPattern(this.value); });
 })();
 
+/* Compact layouts keep the full pattern catalogue in a modal sheet rather
+   than replacing the useful descriptions with a cramped native select. */
+var patternOpen = false;
+var patternFocusTimer = 0;
+function syncPatternSheetMode(){
+  var sheet = $('pattern-sheet');
+  if(isCompactLayout()){
+    if(patternOpen){
+      sheet.removeAttribute('inert');
+      sheet.removeAttribute('aria-hidden');
+      sheet.setAttribute('role', 'dialog');
+      sheet.setAttribute('aria-modal', 'true');
+    } else {
+      sheet.setAttribute('inert', '');
+      sheet.setAttribute('aria-hidden', 'true');
+      sheet.removeAttribute('role');
+      sheet.removeAttribute('aria-modal');
+    }
+  } else {
+    patternOpen = false;
+    window.clearTimeout(patternFocusTimer);
+    document.body.classList.remove('pattern-open');
+    sheet.removeAttribute('inert');
+    sheet.removeAttribute('aria-hidden');
+    sheet.removeAttribute('role');
+    sheet.removeAttribute('aria-modal');
+    $('pattern-trigger').setAttribute('aria-expanded', 'false');
+  }
+}
+function openPatternSheet(){
+  if(!isCompactLayout()) return;
+  patternOpen = true;
+  document.body.classList.add('pattern-open');
+  $('pattern-trigger').setAttribute('aria-expanded', 'true');
+  syncPatternSheetMode();
+  var selected = document.querySelector('.pitem.on');
+  window.clearTimeout(patternFocusTimer);
+  patternFocusTimer = window.setTimeout(function(){
+    if(patternOpen) (selected || $('pattern-close')).focus();
+  }, 220);
+}
+function closePatternSheet(restoreFocus){
+  if(!patternOpen) return;
+  patternOpen = false;
+  window.clearTimeout(patternFocusTimer);
+  document.body.classList.remove('pattern-open');
+  $('pattern-trigger').setAttribute('aria-expanded', 'false');
+  if(restoreFocus !== false) $('pattern-trigger').focus();
+  syncPatternSheetMode();
+}
+$('pattern-trigger').addEventListener('click', openPatternSheet);
+$('pattern-close').addEventListener('click', function(){ closePatternSheet(true); });
+$('pattern-scrim').addEventListener('click', function(){ closePatternSheet(true); });
+if(compactLayout.addEventListener) compactLayout.addEventListener('change', syncPatternSheetMode);
+else compactLayout.addListener(syncPatternSheetMode);
+syncPatternSheetMode();
+
+$('hud-toggle').addEventListener('click', function(){
+  var expanded = !$('telemetry-panel').classList.contains('expanded');
+  $('telemetry-panel').classList.toggle('expanded', expanded);
+  this.setAttribute('aria-expanded', String(expanded));
+  this.setAttribute('aria-label', expanded ? 'Show compact telemetry' : 'Show all telemetry');
+});
+
 function frameCamera(pts){
   var box = new THREE.Box3();
   pts.forEach(function(v){ box.expandByPoint(v); });
@@ -1048,8 +1362,11 @@ function frameCamera(pts){
   var c = box.getCenter(new THREE.Vector3());
   var size = box.getSize(new THREE.Vector3());
   var span = Math.max(size.x, size.y, size.z, 12);
-  camTargetGoal.set(c.x, Math.max(4, c.y * 0.78), c.z);
-  camRadiusGoal = Math.max(24, Math.min(110, span * 1.6 + 11));
+  var portrait = isCompactLayout() && window.innerHeight > window.innerWidth;
+  var targetWeight = portrait ? 0.56 : 0.78;
+  var radiusBoost = portrait ? (window.innerHeight < 650 ? 1.2 : 1.12) : 1;
+  camTargetGoal.set(c.x, Math.max(portrait ? 3.2 : 4, c.y * targetWeight), c.z);
+  camRadiusGoal = Math.max(24, Math.min(118, (span * 1.6 + 11) * radiusBoost));
 }
 
 function setPattern(id){
@@ -1057,6 +1374,7 @@ function setPattern(id){
   progress = 0; endHold = 0;
   playing = !reduceMotion;           // reduced-motion users choose when playback begins
   var pts = buildPath(cur);
+  currentPathPoints = pts;
   frameCamera(pts);
   Array.prototype.forEach.call(document.querySelectorAll('.pitem'), function(b){
     var selected = b.getAttribute('data-id') === id;
@@ -1066,12 +1384,16 @@ function setPattern(id){
   $('p-tag').textContent  = cur.tag.toUpperCase();
   $('p-name').textContent = cur.name;
   $('mobile-pattern').value = id;
+  $('mobile-pattern-number').textContent = cur.idx;
+  $('mobile-pattern-name').textContent = cur.name;
+  $('mobile-pattern-meta').textContent = cur.tag + ' · ' + cur.dur + 's';
   $('p-desc').textContent = cur.desc;
   $('p-specs').innerHTML  = cur.specs.map(function(s){
     return '<div class="sp"><div class="l">' + s[0] + '</div><div class="v">' + s[1] + '</div></div>';
   }).join('');
   syncPlayBtn();
   updateFrame(0);
+  if(patternOpen) closePatternSheet(true);
 }
 
 function syncPlayBtn(){
@@ -1145,7 +1467,25 @@ $('mon-toggle').addEventListener('click', function(){
 
 /* keyboard */
 window.addEventListener('keydown', function(e){
-  if((e.target.closest && e.target.closest('button, input, [role="slider"]')) || e.target.isContentEditable) return;
+  if(patternOpen && e.key === 'Tab'){
+    var sheetFocus = Array.prototype.filter.call(
+      $('pattern-sheet').querySelectorAll('button:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"])'),
+      function(el){ return el.getClientRects().length > 0; });
+    if(sheetFocus.length){
+      var firstFocus = sheetFocus[0], lastFocus = sheetFocus[sheetFocus.length - 1];
+      if(e.shiftKey && document.activeElement === firstFocus){ e.preventDefault(); lastFocus.focus(); return; }
+      if(!e.shiftKey && document.activeElement === lastFocus){ e.preventDefault(); firstFocus.focus(); return; }
+    }
+  }
+  if(e.key === 'Escape'){
+    if(patternOpen){ e.preventDefault(); closePatternSheet(true); return; }
+    if($('telemetry-panel').classList.contains('expanded')){
+      $('hud-toggle').click();
+      $('hud-toggle').focus();
+      return;
+    }
+  }
+  if((e.target.closest && e.target.closest('button, input, select, textarea, [role="slider"]')) || e.target.isContentEditable) return;
   if(e.code === 'Space'){ e.preventDefault(); $('play').click(); }
   else if(e.key === 'r' || e.key === 'R'){ $('replay').click(); }
   else if(e.key === 'c' || e.key === 'C'){ $('compare').click(); }
@@ -1355,11 +1695,19 @@ function loop(){
   }
 }
 
+var layoutSyncTimer = 0;
 window.addEventListener('resize', function(){
   var w = window.innerWidth, h = window.innerHeight;
   renderer.setSize(w, h);
   orbitCam.aspect = w/h; orbitCam.updateProjectionMatrix();
   chaseCam.aspect = w/h; chaseCam.updateProjectionMatrix();
+  if(currentPathPoints.length) frameCamera(currentPathPoints);
+  syncPatternSheetMode();
+  window.clearTimeout(layoutSyncTimer);
+  layoutSyncTimer = window.setTimeout(function(){
+    if(currentPathPoints.length) frameCamera(currentPathPoints);
+    syncPatternSheetMode();
+  }, 90);
 });
 
 setPattern('crane');
