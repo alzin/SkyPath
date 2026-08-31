@@ -16,7 +16,7 @@
     "node": ">=24"
   },
   "devDependencies": {
-    "html-validate": "11.9.0",
+    "html-validate": "11.10.0",
     "yaml": "2.9.0"
   }
 }
